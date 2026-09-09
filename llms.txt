@@ -17,10 +17,15 @@ new products, sharper versions of products already live, and the features
 that take them from good to shipped.
 
 ## Services
-- New products — zero-to-one MVPs, designed and shipped fast
-- Product improvements — sharpening what's already live
-- Feature design — shipping the next thing without breaking what works
-- Go-to-market — the design work that gets a product in front of people
+- Product strategy — getting to the right problem before designing a single screen
+- Rapid prototyping — clickable prototypes in days, so ideas get tested before they get built
+- User research — interviews and usability testing with real users, not just stakeholders
+- UI/UX design — zero-to-one MVPs, feature design, and sharpening what's already live
+- Design systems — components and patterns teams can keep building on
+
+Overspace isn't a hired-gun shop — it partners in the client's business. Having
+built dozens of products, including its own, the studio fully immerses in
+every project it takes on.
 
 ## Selected Clients
 Atrium, Seated, Showcase, Nifty, Flex, Impulse, HousingAnywhere, Method,
