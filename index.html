@@ -18,7 +18,9 @@
 <meta name="twitter:title" content="Overspace — Product Design Studio">
 <meta name="twitter:description" content="Product design studio for startups and teams — MVPs, product improvements, feature design, and launches.">
 <meta name="twitter:image" content="https://overspace.co/og-image-icon.png">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Caveat:wght@700&family=Kalam:wght@700&family=Patrick+Hand&family=Shadows+Into+Light&family=Gochi+Hand&display=swap" rel="stylesheet">
 <style>
   html{
     scroll-behavior:smooth;
@@ -62,17 +64,11 @@
     white-space:nowrap;
     border:0;
   }
-  #logo-svg{
+  #logo-canvas{
     display:block;
     width:100%;
     max-width:420px;
     height:96px;
-    overflow:visible;
-  }
-  #logo-svg path{
-    fill:none;
-    stroke-linecap:round;
-    stroke-linejoin:round;
   }
   h2{
     margin:1.8em 0 0.35em;
@@ -129,7 +125,7 @@
 </head>
 <body>
 
-<h1><svg id="logo-svg" xmlns="http://www.w3.org/2000/svg"></svg><span class="sr-only">Overspace</span></h1>
+<h1><canvas id="logo-canvas" aria-hidden="true"></canvas><span class="sr-only">Overspace</span></h1>
 
 <nav class="site-nav">
   <a href="#clients">Clients</a>
@@ -209,124 +205,85 @@
 
 <script>
 (function(){
-  var svg = document.getElementById('logo-svg');
+  var canvas = document.getElementById('logo-canvas');
+  var ctx = canvas.getContext('2d');
+  var fonts = ['Permanent Marker','Caveat','Kalam','Patrick Hand','Shadows Into Light','Gochi Hand'];
+  var crayons = ['#e0433c','#1d6fe0','#2a9d47','#f2a30f','#8e44ad','#e0559f','#16a085','#c0392b','#2980b9'];
   var text = 'Overspace';
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  var fontUrls = [
-    'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/shadowsintolight/ShadowsIntoLight.ttf',
-    'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/patrickhand/PatrickHand-Regular.ttf',
-    'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/gochihand/GochiHand-Regular.ttf',
-    'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/kalam/Kalam-Bold.ttf',
-    'https://cdn.jsdelivr.net/gh/google/fonts@main/apache/permanentmarker/PermanentMarker-Regular.ttf'
-  ];
-  var crayons = ['#e0433c','#1d6fe0','#2a9d47','#f2a30f','#8e44ad','#e0559f','#16a085','#c0392b','#2980b9'];
-
-  var fontCache = {};
-  function loadFont(url){
-    if (fontCache[url]) return fontCache[url];
-    fontCache[url] = new Promise(function(resolve, reject){
-      opentype.load(url, function(err, font){
-        if (err) reject(err); else resolve(font);
-      });
-    });
-    return fontCache[url];
-  }
-
   function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
-  function wait(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
 
-  function makePath(strokeColor){
-    var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('stroke', strokeColor);
-    svg.appendChild(p);
-    return p;
+  function resizeCanvas(){
+    var cssWidth = canvas.clientWidth;
+    var cssHeight = canvas.clientHeight;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(cssWidth * dpr));
+    canvas.height = Math.max(1, Math.round(cssHeight * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w: cssWidth, h: cssHeight };
   }
 
-  async function drawTracedLogo(){
-    var url = pick(fontUrls);
+  function fitFontSize(font, w, h){
+    var size = Math.floor(h * 0.62);
+    ctx.textBaseline = 'alphabetic';
+    while (size > 14) {
+      ctx.font = size + 'px "' + font + '"';
+      if (ctx.measureText(text).width <= w - 16) break;
+      size -= 2;
+    }
+    return size;
+  }
+
+  function drawCrayonLogo(){
+    var font = pick(fonts);
     var colorA = pick(crayons);
     var colorB = pick(crayons);
     if (colorB === colorA) colorB = pick(crayons);
 
-    var font;
-    try {
-      font = await loadFont(url);
-    } catch (e) {
-      return; // font failed to load (offline, CDN hiccup) — just skip this cycle
-    }
+    var dims = resizeCanvas();
+    ctx.clearRect(0, 0, dims.w, dims.h);
 
-    var fontSize = 90;
-    var advance = font.getAdvanceWidth(text, fontSize);
-    var ascender = font.ascender / font.unitsPerEm * fontSize;
-    var descender = font.descender / font.unitsPerEm * fontSize;
-    var padding = fontSize * 0.08;
+    document.fonts.load('62px "' + font + '"').catch(function(){}).then(function(){
+      var size = fitFontSize(font, dims.w, dims.h);
+      ctx.font = size + 'px "' + font + '"';
+      ctx.textBaseline = 'alphabetic';
+      ctx.clearRect(0, 0, dims.w, dims.h);
 
-    var viewW = advance + padding * 2;
-    var viewH = ascender - descender + padding * 2;
-    svg.setAttribute('viewBox', (-padding) + ' ' + (-ascender - padding) + ' ' + viewW + ' ' + viewH);
+      var x = 2;
+      var baseY = dims.h * 0.68;
 
-    svg.innerHTML = '';
-    var strokeWidth = fontSize * 0.045;
+      for (var i = 0; i < text.length; i++) {
+        var ch = text[i];
+        var w = ctx.measureText(ch).width;
+        var letterJitterY = (Math.random() - 0.5) * (size * 0.14);
+        var letterRot = (Math.random() - 0.5) * 0.1;
 
-    // Build one <path> per letter (not one path for the whole word) —
-    // stroke-dasharray resets at every subpath/moveto, so a single dash
-    // value sized for the *whole word* never animates individual letters
-    // correctly. Per-letter paths let each one get a dash length that
-    // actually matches its own path, so it traces properly.
-    var x = 0;
-    var letters = [];
-    for (var i = 0; i < text.length; i++) {
-      var ch = text[i];
-      var glyphPath = font.getPath(ch, x, 0, fontSize);
-      var d = glyphPath.toPathData(2);
-      x += font.getAdvanceWidth(ch, fontSize);
-      if (!d) continue; // e.g. space
-      letters.push({ d: d });
-    }
-
-    var speed = 1100; // path units traced per second — very quick hand pace
-
-    var built = letters.map(function(letter, idx){
-      var color = idx % 2 === 0 ? colorA : colorB;
-      var p = makePath(color);
-      p.setAttribute('d', letter.d);
-      p.setAttribute('stroke-width', strokeWidth);
-      p.setAttribute('opacity', '0.85');
-      var len = p.getTotalLength();
-      var duration = Math.min(260, Math.max(50, (len / speed) * 1000));
-      if (reduceMotion) {
-        return { el: p, len: len, duration: 0 };
+        for (var p = 0; p < 3; p++) {
+          ctx.save();
+          var jx = (Math.random() - 0.5) * 2;
+          var jy = (Math.random() - 0.5) * 2;
+          ctx.translate(x + w / 2 + jx, baseY + letterJitterY + jy);
+          ctx.rotate(letterRot + (Math.random() - 0.5) * 0.06);
+          ctx.translate(-w / 2, 0);
+          ctx.globalAlpha = 0.5 + Math.random() * 0.3;
+          ctx.fillStyle = p % 2 === 0 ? colorA : colorB;
+          ctx.fillText(ch, 0, 0);
+          ctx.restore();
+        }
+        x += w + (Math.random() - 0.5) * 1.5;
       }
-      p.style.strokeDasharray = len + ' ' + len;
-      p.style.strokeDashoffset = String(len);
-      return { el: p, len: len, duration: duration };
     });
-
-    if (reduceMotion) return;
-
-    // force the initial (fully-hidden) dash state to commit before animating
-    svg.getBoundingClientRect();
-
-    var t = 0;
-    built.forEach(function(item){
-      item.el.style.transition = 'stroke-dashoffset ' + item.duration + 'ms linear ' + t + 'ms';
-      t += item.duration * 0.35; // overlap between letters, like a hand not fully stopping
-    });
-    requestAnimationFrame(function(){
-      built.forEach(function(item){ item.el.style.strokeDashoffset = '0'; });
-    });
-
-    await wait(t + (built.length ? built[built.length - 1].duration : 0) + 100);
   }
 
-  async function loop(){
-    await drawTracedLogo();
-    await wait(700);
-    loop();
+  drawCrayonLogo();
+  window.addEventListener('resize', drawCrayonLogo);
+  if (!reduceMotion) {
+    setInterval(function(){
+      if (document.hidden) return;
+      drawCrayonLogo();
+    }, 4000);
   }
-
-  loop();
 
   var nav = document.querySelectorAll('.site-nav a');
   function flash(target){
