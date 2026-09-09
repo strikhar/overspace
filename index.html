@@ -763,11 +763,83 @@
     }, 45000);
   }
 
-  var SUGGESTIONS = [
-    { label: 'Showcase studies', prompt: 'Show me case studies' },
-    { label: 'Show a recent project', prompt: 'Show me a recent project' },
-    { label: 'Is Overspace for me?', prompt: 'Is Overspace for me?' }
+  // Swappable answer engine. Today this matches simple keyword rules
+  // against the site's own content; swap the "answer" strings (or this
+  // whole lookup) for a real backend call later without touching any
+  // of the UI/chat code below. Each intent doubles as a suggestion
+  // chip — whichever haven't come up yet get offered after every reply.
+  var INTENTS = [
+    {
+      key: 'caseStudies',
+      label: 'Showcase studies',
+      prompt: 'Show me case studies',
+      test: /case stud|showcase|portfolio|example/,
+      answer: "We don't have public case studies posted yet, but our work has shipped inside fintech, proptech, healthcare, and productivity companies — including the first official COVID-19 detection apps in the US, apps featured as Apple's App of the Day, and products used by hundreds of millions of people. Clients include Giftly, HousingAnywhere, Atrium, Showcase, Flex, Impulse, and dozens more. Want the fuller client list, or would you rather just email us for specifics?"
+    },
+    {
+      key: 'recentProject',
+      label: 'Show a recent project',
+      prompt: 'Show me a recent project',
+      test: /recent project|latest work|working on|currently building/,
+      answer: "Most of our client work is under NDA, so I can't share specifics here — but alongside client projects we're building and shipping our own AI experiments (more on that soon). For the freshest details, email hi@illia.co and we'll tell you what we can."
+    },
+    {
+      key: 'fitCheck',
+      label: 'Is Overspace for me?',
+      prompt: 'Is Overspace for me?',
+      test: /is overspace for me|right fit|good fit|who.*for|who do you work with/,
+      answer: "Overspace is built for startups and teams building what's next — whether that's a zero-to-one MVP, sharpening a live product, or shipping the next feature. We're not hired guns; we partner in your business, and we've built dozens of products including our own, so we fully immerse in every project. If that sounds like you, email hi@illia.co."
+    },
+    {
+      key: 'services',
+      label: 'What do you offer?',
+      prompt: 'What do you offer?',
+      test: /service|what do you do|offer/,
+      answer: "We do product strategy, rapid prototyping, user research, UI/UX design, and design systems — basically everything from the first sketch to a system your team can keep building on."
+    },
+    {
+      key: 'process',
+      label: 'How do you work?',
+      prompt: 'How do you work?',
+      test: /process|how.*work|figma/,
+      answer: "Research first, then concept, wireframes, then interface. AI does the heavy lifting where it helps — imagery in Recraft, prototypes in Claude Code, design systems in Claude and Storybook — but the judgment stays human."
+    },
+    {
+      key: 'team',
+      label: "Who's behind it?",
+      prompt: "Who's behind Overspace?",
+      test: /team|who.*behind|founder/,
+      answer: "Overspace was co-founded by Illia Strikhar, Dmytro Strykhar, and Niia Bieliavtseva. We're a fully remote team operating between New York, Berlin, and Athens."
+    },
+    {
+      key: 'pricing',
+      label: "What's the pricing?",
+      prompt: "What's your pricing?",
+      test: /pric|\bcost|\bbudget|\brate\b/,
+      answer: "Pricing depends on scope — easiest is to email hi@illia.co with what you're building and we'll figure out what makes sense."
+    },
+    {
+      key: 'contact',
+      label: 'How do I get in touch?',
+      prompt: 'How do I get in touch?',
+      test: /contact|email|reach|talk|hire|touch/,
+      answer: "You can reach us any time at hi@illia.co — a real human (not shaped like a paperclip) will get back to you."
+    }
   ];
+  var FALLBACK_ANSWER = "I'm just a scripted assistant for now, so I might not have a good answer for that one. For anything specific, email hi@illia.co and we'll get back to you.";
+  var usedIntentKeys = {};
+
+  function remainingIntents(){
+    return INTENTS.filter(function(intent){ return !usedIntentKeys[intent.key]; });
+  }
+
+  function findIntent(text){
+    var q = text.toLowerCase();
+    for(var i = 0; i < INTENTS.length; i++){
+      if(INTENTS[i].test.test(q)) return INTENTS[i];
+    }
+    return null;
+  }
 
   function scrollToBottom(){
     messages.scrollTop = messages.scrollHeight;
@@ -782,21 +854,36 @@
     return el;
   }
 
-  function addChips(options){
+  var currentChipsEl = null;
+
+  function clearChips(){
+    if(currentChipsEl){
+      currentChipsEl.remove();
+      currentChipsEl = null;
+    }
+  }
+
+  // Only one suggestion row should ever be on screen. Whatever
+  // triggered the last reply — a chip click or free text — the old
+  // row gets cleared here before (optionally) rendering a new one.
+  function addChips(intents){
+    clearChips();
+    if(!intents.length) return;
     var wrap = document.createElement('div');
     wrap.className = 'assistant-chips';
-    options.forEach(function(opt){
+    intents.forEach(function(intent){
       var chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'assistant-chip';
-      chip.textContent = opt.label;
+      chip.textContent = intent.label;
       chip.addEventListener('click', function(){
-        wrap.remove();
-        handleUserMessage(opt.prompt, opt.label);
+        clearChips();
+        respond(intent.prompt, intent.answer, intent.key);
       });
       wrap.appendChild(chip);
     });
     messages.appendChild(wrap);
+    currentChipsEl = wrap;
     scrollToBottom();
   }
 
@@ -809,56 +896,28 @@
     return el;
   }
 
-  // Swappable answer engine. Today this matches simple keyword rules
-  // against the site's own content; swap this function's body for a
-  // real backend call (e.g. a small proxy that holds an LLM API key)
-  // without touching any of the UI/chat code above.
-  function getAssistantReply(text){
-    var q = text.toLowerCase();
-
-    if(/case stud|showcase|portfolio|example/.test(q)){
-      return "We don't have public case studies posted yet, but our work has shipped inside fintech, proptech, healthcare, and productivity companies — including the first official COVID-19 detection apps in the US, apps featured as Apple's App of the Day, and products used by hundreds of millions of people. Clients include Giftly, HousingAnywhere, Atrium, Showcase, Flex, Impulse, and dozens more. Want the fuller client list, or would you rather just email us for specifics?";
-    }
-    if(/recent project|latest work|working on|currently building/.test(q)){
-      return "Most of our client work is under NDA, so I can't share specifics here — but alongside client projects we're building and shipping our own AI experiments (more on that soon). For the freshest details, email hi@illia.co and we'll tell you what we can.";
-    }
-    if(/is overspace for me|right fit|good fit|who.*for|who do you work with/.test(q)){
-      return "Overspace is built for startups and teams building what's next — whether that's a zero-to-one MVP, sharpening a live product, or shipping the next feature. We're not hired guns; we partner in your business, and we've built dozens of products including our own, so we fully immerse in every project. If that sounds like you, email hi@illia.co.";
-    }
-    if(/service|what do you do|offer/.test(q)){
-      return "We do product strategy, rapid prototyping, user research, UI/UX design, and design systems — basically everything from the first sketch to a system your team can keep building on.";
-    }
-    if(/process|how.*work|figma/.test(q)){
-      return "Research first, then concept, wireframes, then interface. AI does the heavy lifting where it helps — imagery in Recraft, prototypes in Claude Code, design systems in Claude and Storybook — but the judgment stays human.";
-    }
-    if(/team|who.*behind|founder/.test(q)){
-      return "Overspace was co-founded by Illia Strikhar, Dmytro Strykhar, and Niia Bieliavtseva. We're a fully remote team operating between New York, Berlin, and Athens.";
-    }
-    if(/pric|\bcost|\bbudget|\brate\b/.test(q)){
-      return "Pricing depends on scope — easiest is to email hi@illia.co with what you're building and we'll figure out what makes sense.";
-    }
-    if(/contact|email|reach|talk|hire/.test(q)){
-      return "You can reach us any time at hi@illia.co — a real human (not shaped like a paperclip) will get back to you.";
-    }
-
-    return "I'm just a scripted assistant for now, so I might not have a good answer for that one. For anything specific, email hi@illia.co and we'll get back to you.";
-  }
-
-  function handleUserMessage(promptText, displayText){
-    addMessage(displayText || promptText, 'user');
+  function respond(displayText, answerText, matchedKey){
+    addMessage(displayText, 'user');
     var typingEl = showTyping();
     var delay = reduceMotion ? 150 : 500 + Math.random() * 400;
     setTimeout(function(){
       typingEl.remove();
-      addMessage(getAssistantReply(promptText), 'bot');
+      addMessage(answerText, 'bot');
+      if(matchedKey) usedIntentKeys[matchedKey] = true;
+      addChips(remainingIntents());
     }, delay);
+  }
+
+  function handleFreeText(text){
+    var intent = findIntent(text);
+    respond(text, intent ? intent.answer : FALLBACK_ANSWER, intent && intent.key);
   }
 
   function greet(){
     if(greeted) return;
     greeted = true;
     addMessage("Hi, I'm Clip — Overspace's (very scripted) assistant. What do you want to know?", 'bot');
-    addChips(SUGGESTIONS);
+    addChips(remainingIntents());
   }
 
   function openPanel(){
@@ -893,7 +952,7 @@
     var text = input.value.trim();
     if(!text) return;
     input.value = '';
-    handleUserMessage(text);
+    handleFreeText(text);
   });
 })();
 </script>
